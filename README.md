@@ -1,7 +1,7 @@
 NN-based GGA exchange-correlation functional and potential 
 ====
 
-Parameters of GGA NN and code to use it in SCF calculations (simply put "hamiltonian" and "grid" folders to "src" folder of Octopus and compile).
+Parameters of GGA NN and code to use it in SCF calculations (simply put "hamiltonian" and "grid" folders to "src" folder of Octopus with replacement and compile).
 For calculations, you need to put files from the "weights" folder to the directory where Octopus runs.
 
 Requirements: Octopus 8.4
