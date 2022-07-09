@@ -39,6 +39,7 @@
 !!             -4 : function in file is complex, dp. \n
 ! ---------------------------------------------------------
 
+! Luck
 subroutine X(io_function_input)(filename, mesh, ff, ierr, map)
   character(len=*),  intent(in)    :: filename
   type(mesh_t),      intent(in)    :: mesh

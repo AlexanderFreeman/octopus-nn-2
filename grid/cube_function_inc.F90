@@ -22,6 +22,7 @@
 !> Allocates locally the real space grid, if PFFT library is not used.
 !! Otherwise, it assigns the PFFT real space grid to the cube real space grid,
 !! via pointer.
+! Luck
 subroutine X(cube_function_alloc_rs)(cube, cf, in_device, force_alloc)
   type(cube_t), target,  intent(in)    :: cube
   type(cube_function_t), intent(inout) :: cf

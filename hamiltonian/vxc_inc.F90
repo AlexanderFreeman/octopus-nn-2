@@ -29,12 +29,6 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   FLOAT, optional,      intent(inout) :: ec              !< Correlation energy.
   FLOAT, optional,      intent(inout) :: deltaxc         !< The XC derivative discontinuity
   FLOAT, optional,      intent(inout) :: vtau(:,:)       !< Derivative wrt (two times kinetic energy density)
-  FLOAT :: fc1_W(1000, 2)
-  FLOAT :: fc2_W(500, 1001)
-  FLOAT :: fcout_W(1, 501)
-  FLOAT :: fc1_W_gga(1000, 126)
-  FLOAT :: fc2_W_gga(500, 1001)
-  FLOAT :: fcout_W_gga(1, 501)
   FLOAT :: enc1_W(100, 3)
   FLOAT :: enc2_W(100, 101)
   FLOAT :: enc3_W(100, 101)
@@ -45,6 +39,7 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   FLOAT :: dec3_W(100, 101)
   FLOAT :: dec4_W(100, 101)
   FLOAT :: decout_W(1, 101)
+  FLOAT :: normalizer(4,2)
   FLOAT :: density_mean, density_std
   FLOAT :: sigma_mean, sigma_std
   FLOAT :: scalars_mean, scalars_std
@@ -54,25 +49,17 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   integer :: neigh_indices_i(5), neigh_indices_j(5), neigh_indices_k(5)
   integer, dimension (:,:,:), allocatable :: mapper
   integer, allocatable :: inverse_mapper(:)
-  FLOAT, allocatable :: corrected_rho(:,:)
   FLOAT, allocatable :: input_sigma(:,:)
-  FLOAT, allocatable :: corrected_sigma(:,:)
   FLOAT, allocatable :: input_sigma_grad(:,:,:)
   FLOAT, allocatable :: input_scalars(:,:)
-  FLOAT, allocatable :: corrected_scalars(:,:)
   FLOAT, allocatable :: input_laplacian(:,:)
-  FLOAT, allocatable :: corrected_laplacian(:,:)
-  FLOAT, allocatable :: corrected_vxc(:,:)
-  FLOAT, allocatable :: corrected_ecpervol(:)
-  logical :: order_file_exists
+  logical :: normalizer_file_exists
   logical :: normalization
   
   ! integer, dimension (1:3) :: order1 = (/ 3, 2, 1 /)
   
   ! FLOAT, dimension (:,:,:), allocatable :: rho_3d  
   
-  FLOAT :: test_in_preprocess(3, 1)
-  FLOAT :: test_out_preprocess(4, 1)
   FLOAT :: vxc_inp_matrix(1,1)
   FLOAT :: vxc_inp_matrix_gga(125,1)
   FLOAT :: enc_inp_matrix_gga(2,1)
@@ -80,7 +67,7 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   FLOAT :: dec_inp_matrix_gga(5,1)
   FLOAT :: dec_out_matrix_gga(1,1)
   FLOAT :: vxc_out_matrix(1,1)
-
+  ! Luck
   ! Formerly vxc was optional, but I removed this since we always pass vxc, and this simplifies the routine
   ! and avoids some optimization problems. --DAS
 
@@ -135,15 +122,31 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   ASSERT(present(ex) .eqv. present(ec))
   calc_energy = present(ex)
   normalization = .true.
-  density_mean = 0.0235697105526924
-  density_std = 0.0494808256626129
-  sigma_mean = 0.0064142136834562
-  sigma_std = 0.0411349944770336
-  scalars_mean = 0.0003477279969957
-  scalars_std = 0.1675074994564056
-  laplacians_mean = -0.0029415220487863
-  laplacians_std = 0.2866358757019043
-
+  INQUIRE(FILE="normalizer.txt", EXIST=normalizer_file_exists)
+  if(normalizer_file_exists) then
+    open (42, file = 'normalizer.txt', status = 'old') 
+    read(42, *) ((normalizer(i,j),j=1,2),i=1,4)	
+    close(42)
+    density_mean = normalizer(1,1)
+    density_std = normalizer(1,2)
+    sigma_mean = normalizer(2,1)
+    sigma_std = normalizer(2,2)
+    scalars_mean = normalizer(3,1)
+    scalars_std = normalizer(3,2)
+    laplacians_mean = normalizer(4,1)
+    laplacians_std = normalizer(4,2)
+  else
+    !default
+    density_mean = 0.0235697105526924
+    density_std = 0.0494808256626129
+    sigma_mean = 0.0064142136834562
+    sigma_std = 0.0411349944770336
+    scalars_mean = 0.0003477279969957
+    scalars_std = 0.1675074994564056
+    laplacians_mean = -0.0029415220487863
+    laplacians_std = 0.2866358757019043
+  end if
+  
   !Pointer-shortcut for xcs%functional
   !It helps to remember that for xcs%functional(:,:)
   ! (1,:) => exchange,    (2,:) => correlation
@@ -195,13 +198,13 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   if(mgga) call mgga_init()
   
   !density clip
-  !do ip = 1, der%mesh%np
-  !	  if (dens(ip,1) <= 0) then
-  !		dens(ip,1) = 1e-16
-  !	  end if
-  !	  !if (dens(ip,1) > 0.5) then
-  !	  ! 	dens(ip,1) = 0.5
-  !	  !end if
+  do ip = 1, der%mesh%np
+  	  if (dens(ip,1) <= 1e-16) then
+  		dens(ip,1) = 1e-16
+  	  end if
+  	  !if (dens(ip,1) > 0.5) then
+  	  ! 	dens(ip,1) = 0.5
+  	  !end if
   end do
 
   ! Get the gradient and the Laplacian of the density and the kinetic-energy density
@@ -252,6 +255,10 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   ! получаем сигму
   do ip = 1, der%mesh%np
 	  input_sigma(ip, 1) = sum(gdens(ip, 1:der%mesh%sb%dim, 1)**2)
+	  !sigma clip
+	  if (input_sigma(ip,1) <= 1e-16) then
+  		input_sigma(ip,1) = 1e-16
+  	  end if
   end do
   
   ! получаем градиент сигмы
@@ -594,61 +601,11 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
   if( gga) call  gga_process()
   call lda_process()
   ! vxc(1, 1) = -0.0521361712389563172D0
-  ! read weights
-  open (42, file = 'fc1_W.txt', status = 'old') 
-  read(42, *) ((fc1_W(i,j),j=1,2),i=1,1000)	
-  close(42)
-  open (42, file = 'fc2_W.txt', status = 'old')
-  read(42, *) ((fc2_W(i,j),j=1,1001),i=1,500)
-  close(42)
-  open (42, file = 'fcout_W.txt', status = 'old')
-  read(42, *) ((fcout_W(i,j),j=1,501),i=1,1)
-  close(42)
-  
   
   2  format(2e22.15)
   1001  format(1001e22.15)
   501  format(501e22.15)    
   
-  test_in_preprocess(1,1) = 5
-  test_in_preprocess(2,1) = 6
-  test_in_preprocess(3,1) = 7
-  
-  call preprocess_input(test_in_preprocess, 3, test_out_preprocess)
-  
-  
-  INQUIRE(FILE="order.txt", EXIST=order_file_exists)
-  
-  
-  if(order_file_exists) then
-	SAFE_ALLOCATE(mapper(n1, n2, n3))
-	SAFE_ALLOCATE(inverse_mapper(der%mesh%np))
-	SAFE_ALLOCATE(corrected_rho(der%mesh%np, 1))
-	SAFE_ALLOCATE(corrected_sigma(der%mesh%np, 1))
-	SAFE_ALLOCATE(corrected_scalars(der%mesh%np, 1))
-	SAFE_ALLOCATE(corrected_laplacian(der%mesh%np, 1))
-	open (42, file = 'order.txt', status = 'old')
-	do ip = 1, der%mesh%np
-		read(42, *) iix, iiy, iiz, iip
-		mapper(iix,iiy,iiz) = iip
-	end do
-	! correct density order
-	ip = 1
-	do iix = 1, n1
-		do iiy = 1, n2
-			do iiz = 1, n3
-				corrected_rho(ip, 1) = rho(mapper(iix,iiy,iiz), 1)
-				corrected_sigma(ip, 1) = input_sigma(mapper(iix,iiy,iiz), 1)
-				corrected_scalars(ip, 1) = input_scalars(mapper(iix,iiy,iiz), 1)
-				corrected_laplacian(ip, 1) = input_laplacian(mapper(iix,iiy,iiz), 1)
-				inverse_mapper(ip) = mapper(iix,iiy,iiz)
-				ip = ip + 1
-			end do
-		end do
-	end do
-	close(42)
-	
-  end if
   
   do ip = 1, der%mesh%np
 	vxc(ip, 1) = 0
@@ -671,41 +628,13 @@ subroutine xc_get_vxc(der, xcs, st, rho, ispin, ioniz_pot, qtot, vxc, ex, ec, de
 		call gga_decoder(dec_inp_matrix_gga, dec1_W, dec2_W, dec3_W, dec4_W, decout_W, dec_out_matrix_gga)
 		vxc(ip, 1) = dec_out_matrix_gga(1, 1)
 		!vxc clip
-		!if (vxc(ip,1) > 0.05) then
+		! (vxc(ip,1) > 0.05) then
 		!	vxc(ip,1) = 0.05
 		!end if
 		!if (vxc(ip,1) < -2.0) then
 		!	vxc(ip,1) = -2.0
 		!end if
 	  end do
-  else   
-	  ! Replace vxc with NN prediction
-	  do ip = 1, der%mesh%np
-		if(rho(ip, 1) <= 0) then
-			vxc_inp_matrix(1,1) = -27
-		else
-			vxc_inp_matrix(1,1) = log10(rho(ip, 1))
-		end if
-		call lda_nn(vxc_inp_matrix, fc1_W, fc2_W, fcout_W, vxc_out_matrix)
-		vxc(ip, 1) = vxc_out_matrix(1, 1)
-	  end do
-  end if
-  
-  if(order_file_exists) then
-	SAFE_ALLOCATE(corrected_vxc(der%mesh%np, 1))
-	SAFE_ALLOCATE(corrected_ecpervol(der%mesh%np))
-	! correct vxc order
-	ip = 1
-	do iix = 1, n1
-		do iiy = 1, n2
-			do iiz = 1, n3
-				corrected_vxc(ip, 1) = vxc(mapper(iix,iiy,iiz), 1)
-				corrected_ecpervol(ip) = ec_per_vol(mapper(iix,iiy,iiz))
-				ip = ip + 1
-			end do
-		end do
-	end do
-	
   end if
   
   ! clean up allocated memory
@@ -772,56 +701,6 @@ contains
 	end do
 	POP_SUB(xc_get_vxc.elu)
   end subroutine elu
-  
-  subroutine lda_nn(inp, W1, W2, Wout, out_array)
-	FLOAT, intent(in) :: inp(:,:)
-	FLOAT, intent(in) :: W1(:,:)
-	FLOAT, intent(in) :: W2(:,:)
-	FLOAT, intent(in) :: Wout(:,:)
-	FLOAT, intent(out) :: out_array(:,:)
-	FLOAT :: input_preprocessed(2,1)
-	FLOAT :: part1_preprocessed(1001, 1)
-	FLOAT :: part2_preprocessed(501, 1)
-	FLOAT :: part1(1000, 1)
-	FLOAT :: part1_act(1000, 1)
-	FLOAT :: part2(500, 1)
-	FLOAT :: part2_act(500, 1)
-	PUSH_SUB(xc_get_vxc.lda_nn)
-	call preprocess_input(inp, 1, input_preprocessed)
-	part1 = matmul(W1, input_preprocessed)
-	call relu(part1, 1000, 1, part1_act)
-	call preprocess_input(part1_act, 1000, part1_preprocessed)
-	part2 = matmul(W2, part1_preprocessed)
-	call relu(part2, 500, 1, part2_act)
-	call preprocess_input(part2_act, 500, part2_preprocessed)
-	out_array = matmul(Wout, part2_preprocessed)
-	POP_SUB(xc_get_vxc.lda_nn)
-  end subroutine lda_nn
-  
-  subroutine gga_nn(inp, W1, W2, Wout, out_array)
-	FLOAT, intent(in) :: inp(:,:)
-	FLOAT, intent(in) :: W1(:,:)
-	FLOAT, intent(in) :: W2(:,:)
-	FLOAT, intent(in) :: Wout(:,:)
-	FLOAT, intent(out) :: out_array(:,:)
-	FLOAT :: input_preprocessed(126,1)
-	FLOAT :: part1_preprocessed(1001, 1)
-	FLOAT :: part2_preprocessed(501, 1)
-	FLOAT :: part1(1000, 1)
-	FLOAT :: part1_act(1000, 1)
-	FLOAT :: part2(500, 1)
-	FLOAT :: part2_act(500, 1)
-	PUSH_SUB(xc_get_vxc.gga_nn)
-	call preprocess_input(inp, 125, input_preprocessed)
-	part1 = matmul(W1, input_preprocessed)
-	call relu(part1, 1000, 1, part1_act)
-	call preprocess_input(part1_act, 1000, part1_preprocessed)
-	part2 = matmul(W2, part1_preprocessed)
-	call relu(part2, 500, 1, part2_act)
-	call preprocess_input(part2_act, 500, part2_preprocessed)
-	out_array = matmul(Wout, part2_preprocessed)
-	POP_SUB(xc_get_vxc.gga_nn)
-  end subroutine gga_nn
   
   subroutine gga_encoder(inp, enc1_W, enc2_W, enc3_W, enc4_W, encout_W, out_array)
 	FLOAT, intent(in) :: inp(:,:)
