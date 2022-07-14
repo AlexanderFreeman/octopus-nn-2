@@ -7,15 +7,9 @@ For calculations, you need to put files from the "weights" folder to the directo
 Requirements: Octopus 8.4
 
 ## Reference
-Cite the following paper in related works.
+Citation format:
 
-@misc{ryabov2021application,
-      title={Application of neural network for exchange-correlation functional interpolation}, 
-      author={Alexander Ryabov and Petr Zhilyaev},
-      year={2021},
-      eprint={2112.04881},
-      archivePrefix={arXiv},
-      primaryClass={physics.comp-ph}
-}
+Alexander Ryabov, Iskander Akhatov, Petr Zhilyaev et al. Application of two-component neural network for exchange-correlation functional interpolation, 27 May 2022, PREPRINT (Version 1) available at Research Square [https://doi.org/10.21203/rs.3.rs-1679863/v1]
 
-Link to the article: https://arxiv.org/abs/2112.04881
+Link to the article: 
+https://doi.org/10.21203/rs.3.rs-1679863/v1
